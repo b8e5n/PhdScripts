@@ -2,8 +2,11 @@ AUTHOR BENOIT CARRERES
 
 These scripts are made to analyse mRNAseq data and compare the transcripted genes over different experiments.
 
-The setup is very specific, so all the candidate folder should be place at the same level as the scripts. Diverse files will be generated out of the original file (the first step starts from reads files). The files containing data of comparison over other candidates (*vsAll) are place at the current directory, and the experiment-specific files will be places in it's own folder. In each folders, the structure and the file naming is exactly the same, so they are treated the same way. For the files in the current direcory, the name of the folder is used as a prefix.
-_hom files correspond to homogenous candidate gene size (over different experiments), and therefore are treated directly.
-_het fiels correspond to heterogenous candidate gene size (over different experiments), and requires more threatment for removing spoiling extra sequence. This size difference is probably due to introns, and this will be the chalenge on theses.
-The mRNA_hom/het files are retrieved from the mRNA file, which consists of a basic selection from the hom/het candidates previously generated.
-The homMatchingReads files are generated in order to make an expression estimation of the candidate genes. By counting how many reads are matching each candidates / total number of reads, the expression can be estimated. Afterwards, this estimation need to be normalized with the other experiments.
+The setup is very specific, so all the candidate folder should be place at the same level as the scripts. Diverse files will be generated out of the original file (the first step starts from reads files).
+
+More details on the generated files:
+	The files containing data of comparison over other candidates (*vsAll) are place at the current directory, and the experiment-specific files will be places in it's own folder. In each folders, the structure and the file naming is exactly the same, so they are treated the same way. For the files in the current direcory, the name of the folder is used as a prefix.
+	_hom files correspond to homogenous candidate gene size (over different experiments), and therefore are treated directly.
+	_het fiels correspond to heterogenous candidate gene size (over different experiments), and requires more threatment for removing spoiling extra sequence. This size difference is probably due to introns, and this will be the chalenge on theses.
+	The mRNA_hom/het files are retrieved from the mRNA file, which consists of a basic selection from the hom/het candidates previously generated.
+	The homMatchingReads files are generated in order to make an expression estimation of the candidate genes. By counting how many reads are matching each candidates / total number of reads, the expression can be estimated. Afterwards, this estimation need to be normalized with the other experiments.
