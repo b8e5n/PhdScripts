@@ -1,0 +1,168 @@
+#!/bin/perl -w
+use strict;
+use diagnostics;
+use Parallel::ForkManager;
+$SIG{'INT'} = 'INT_handler';# manage the killing signal => remove temp files :D
+my $max_process = 16;
+
+#AUTHOR BENOIT CARRERES
+#multi threads is set to 8
+# for final table :"Probe.Set.Name\tSubject id\ts. start\ts. end\tmissmatch\tgaps\tPM Candidates(single multiple)".
+# if no response\t the 4 last columns will be empty
+
+my $argSize = $#ARGV;
+print "there is $argSize arguments\n\n";
+
+my $originPath = `pwd`;
+chomp $originPath;
+print "the origin folder is : $originPath\n";
+my @folders = split("\n",`ls -la | egrep '^d' | awk '{print \$9}' | egrep -v '^\.\.?\$'`);
+
+####annotate();
+#buildGff();
+buildDB();
+compareExperiments();
+nextStep();
+
+
+###############################################################################
+#########################Annotate transcript file##############################
+###############################################################################
+
+#`/home/peter/Programs/idba-1.1.0/bin/idba_ud -r neo_F2.fna -o NeoF2.out/`
+
+
+###############################################################################
+#############################Build GFF file####################################
+###############################################################################
+
+sub buildGff {
+print "===================Building GFFs==================================\n";
+my $pmGff = new Parallel::ForkManager($max_process);
+foreach (@folders) {
+	#start multithreading
+	my $pidGff = $pmGff->start and next;
+	print "$pidGff=>$_\n";
+	chdir($_) || die ("$pidGff=>cannot got to directory : $_");
+	my $currentPath = `pwd`; chomp $currentPath;
+	print "$pidGff=>the current folder is : $currentPath\n";
+	my $isgff = `ls | grep gff | wc -l`;
+	if ($isgff == 1) {
+		print "$pidGff=>gff already present, skipping...\n";
+	} else {
+		`/home/benoit/Documents/programs/quast-2.1/quast.py -o $currentPath/quast --eukaryote --gene-finding contig.fa`;
+		`mv quast/predicted_genes/contig_genes.gff ./`;
+	}
+	chdir("..") || die ("$pidGff=>cannot come back to origin (previous) path\n");
+	#end of the multithreads
+	$pmGff->finish;
+}
+#checks if there is nothing else running
+$pmGff->wait_all_children;
+}
+
+###############################################################################
+#########Build mRNA database out of the annotation (contig<-->genes)###########
+###############################################################################
+sub buildDB {
+print "==================Building mRNA DB================================\n";
+my $pmDB = new Parallel::ForkManager($max_process);
+foreach (@folders) {
+	#start multithreading
+	my $pidDB = $pmDB->start and next;
+	print "$pidDB=>$_\n";
+	chdir($_) || die ("$pidDB=>cannot got to directory : $_\n");
+	my $currentPath = `pwd`;
+	print "$pidDB=>the current folder is : $currentPath\n";
+	`cat contig_genes.gff |grep mRNA  |sed 's/_length/\ length/' |grep -v \+ |awk '{print "fastacmd -d contig.fa -s "\$1" -L"\$5","\$6" -S2"}' >min.sh`;
+	`cat contig_genes.gff |grep mRNA  |sed 's/_length/\ length/' |grep \+ |awk '{print "fastacmd -d contig.fa -s "\$1" -L"\$5","\$6" -S2"}' >plus.sh`;
+	`cat min.sh plus.sh >mRNA.sh`;
+	`bash mRNA.sh > mRNA.fna`;
+	`formatdb -i mRNA.fna -p F -o`;
+
+	chdir("..") || die ("$pidDB=>cannot come back to origin (previous) path\n");
+	#end of the multithreads
+	$pmDB->finish;
+}
+#checks if there is nothing else running
+$pmDB->wait_all_children;
+}
+###############################################################################
+
+###############################################################################
+#################Compare all experiements against each others##################
+###############################################################################
+sub compareExperiments {
+print "==================Start megablasts================================\n";
+my $pmComp = new Parallel::ForkManager($max_process);
+foreach (@folders) {
+		`cp -r $_ /dev/shm/$_`;
+	}
+foreach my $workingFolder (@folders) {
+	#start multithreading
+	my $pidComp = $pmComp->start and next;
+	#now several jobs
+	print "$pidComp=>$workingFolder\n";
+	my $analyseFilename = $workingFolder."vsAll";
+	open (RESULTS, ">$analyseFilename") || die ("$pidComp=>cannot open file to write results of $workingFolder\n");
+	
+	chdir($workingFolder) || die ("$pidComp=>cannot got to directory : $_");
+	my $currentPath = `pwd`;
+	print "$pidComp=>the current folder is : $currentPath\n";
+	open (MRNA, "mRNA.sh") || die ("$pidComp=>pb accessing mRNA.sh file from the folder: $currentPath\n");
+	while (<MRNA>){
+		chomp;
+		my $tempFile = "/dev/shm/temp$workingFolder.fa";
+		`$_ > $tempFile`;
+		my $idQuery = `head -1 $tempFile`;
+		$idQuery =~ s/^(>\w{3}[|][-\d\w_]*?)\s.*length_(\d+)(\s.*)/$1:1-$2/;##if the id line does not have the range, add one from 1 to length
+		$idQuery =~ s/^>\w{3}[|]([-\d\w_]*?[:]\d+[-]\d+)\s.*/$workingFolder|$1/;
+		my $isMatching = 0;#########################if you want only matching lines
+		my $queryResult = $idQuery;
+		chomp $queryResult;
+		foreach my $against (@folders) {
+			if ($workingFolder ne $against) {
+				#print "$pidComp=>megablast -d ../$against/mRNA.fna -i $tempFile -W 100 -m 8 -P 99 | head -n 1 | awk \'{print $workingFolder\"|\"\$2}\' \n";
+				my $idSubject = `megablast -d /dev/shm/$against/mRNA.fna -i $tempFile -W 100 -m 8 -P 99 -a2 -v1 | head -n1 | awk \'{print \$2}\'`;
+				chomp $idSubject;
+				if ($idSubject ne "") {
+					$queryResult .= "\t$against|$idSubject";
+					$isMatching = 1;###if you want only matching lines
+				} else {
+					$queryResult .= "\tNA";
+				}
+			}
+		}
+		if ($isMatching == 1) {####################if you want only matching lines
+			print RESULTS ("$queryResult\n");
+		}##########################################if you want only matching lines
+	}
+	close (MRNA);
+	close (RESULTS);	
+	chdir("..") || die ("$pidComp=>cannot come back to origin (previous) path\n");
+	#end of the multithreads
+	$pmComp->finish;
+}
+#checks if there is nothing else running
+$pmComp->wait_all_children;
+}
+
+sub nextStep {
+	`perl filterMatches.pl`;
+}
+
+
+print "done\n";
+exit 0;
+
+
+sub INT_handler {
+	`rm *vsAll 2> /dev/null`;
+	`rm /dev/shm/*.fna 2> /dev/null`;
+	foreach (@folders) {
+		`rm -r /dev/shm/$_ 2> /dev/null`;
+	}
+	`clear`;
+	exit 0;
+
+}
