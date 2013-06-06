@@ -21,17 +21,16 @@ print "the origin folder is : $originPath\n";
 my @folders = split("\n",`ls -l | egrep '^d' | awk \'{print \$9}\'`);
 
 
-#separateCandidates();
-#getherSequencesHomo();
+separateCandidates();
+getherSequencesHomo();
 
-#blastHomoWithReads();
-#calculateExpressionLevels();
-#generateComparativeExpressionFile();
+blastHomoWithReads();
+calculateExpressionLevels();
+generateComparativeExpressionFile();
 #blastHomoWithNCBI_DB();#unfinished
-#mRNAfastaToSingleLinedSequences(); # to be ran before mRNAsMerge
-#mRNAsMerge(); #takes all hom.fa, with single lined sequences and merge fatas without replication.
-#blastGoldenGenes(); #for now blast only against proteins
-selectUniqueCandidates();
+mRNAfastaToSingleLinedSequences(); # to be ran before mRNAsMerge
+mRNAsMerge(); #takes all hom.fa, with single lined sequences and merge fatas without replication.
+blastGoldenGenes(); #for now blast only against proteins
 ####getherSequencesHetero();
 
 
@@ -123,7 +122,7 @@ foreach my $workingFolder (@folders) {
 			print HOM `fastacmd -d /dev/shm/$workingFolder/mRNA.fna -s $1`;
 			if (`echo $?` != 0) {
 				print "missing/error on fasta CMD, trying ID without start/stop\n";
-				$line =~ /^$workingFolder[|]([-\d\w_]*?)[:]\d+[-]\d+\s.*/;
+				$line =~ /^$workingFoldecalculateExpressionLevelsr[|]([-\d\w_]*?)[:]\d+[-]\d+\s.*/;
 				print HOM `fastacmd -d /dev/shm/$workingFolder/mRNA.fna -s $1`;
 			}		
 		} else {
@@ -480,15 +479,15 @@ my $pmEe = new Parallel::ForkManager($max_process);
 my @organismsToBlast = ("Cre_uniprot.fasta", "Ath_uniprot.fasta", "Sac_uniprot.fasta", "Ptr_uniprot.fasta");
 
 open(RNA, "<mRNA_hom_gd.fa") || die ("cannot open file to read mapping: mRNA_hom_gd.fa\n");
-open(my $SIXTY, ">60.prot.mapping") || die ("cannot open file for writing\n");
-open(my $FIFTY, ">50.prot.mapping") || die ("cannot open file for writing\n");
-open(my $THURTYFIVE, ">35.prot.mapping") || die ("cannot open file for writing\n");
+open(my $SIXTY, ">60.prot.mapping") || die ("cannot open file for reading\n");
+open(my $FIFTY, ">50.prot.mapping") || die ("cannot open file for reading\n");
+open(my $THURTYFIVE, ">35.prot.mapping") || die ("cannot open file for reading\n");
 
 my $counter = 1;
 `mkdir /dev/shm/mrnas`;
 my $dbFolder = "/dev/shm/dbs";
 `mkdir $dbFolder`;
-`cp  /home/benoit/dbs/prots/* $dbFolder`;
+`cp  /home/benoit/Documents/fastaDBs/prots/* $dbFolder`;
 `chmod -u+rw $dbFolder/*`;
 
 while (my $id = <RNA>) {
@@ -566,43 +565,6 @@ close($THURTYFIVE);
 }
 ###############################################################################
 
-###############################################################################
-############################Blast the golden genes#############################
-###############################################################################
-sub selectUniqueCandidates {
-open(SIXTY, "<60.prot.mapping") || die ("cannot open file for reading\n");
-open(my $FIFTY, "<50.prot.mapping") || die ("cannot open file for reading\n");
-open(my $THURTYFIVE, "<35.prot.mapping") || die ("cannot open file for reading\n");
-my %sixty;
-my %fifty;
-my %thurtyfive;
-
-while (my $line60 = <SIXTY>) {
-	my @lineTab = split("\t", $line60);
-	my $id = shift(@lineTab);
-	print "$lineTab[0]\n";
-	my $dbType = $lineTab[0];
-	if ($sixty{$id}) {
-		$sixty{$id} = \@lineTab;
-	} else {
-		my @previousTab = $sixty{$id};
-		my $previousDbType = $previousTab[0];
-		my $score = $lineTab[-1];
-		my $previousScore = $previousTab[-1];
-		if ($previousDbType =~ /^tr/ && $dbType =~ /^sp/) {
-			$sixty{$id} = \@lineTab;
-		} elsif ($previousDbType =~ /^tr/ && $dbType =~ /^tr/ || $previousDbType =~ /^sp/ && $dbType =~ /^sp/) {
-			if ($score>$previousScore) {
-				$sixty{$id} = \@lineTab;
-			}
-		}
-	}
-}
-printHashFile("60.prot.mapping.uniq", "./", "", "", "", %sixty);
-close(SIXTY);
-close($FIFTY);
-close($THURTYFIVE);
-}
 
 print "done\n";
 exit 0;
@@ -611,11 +573,9 @@ sub printHashFile {
 	my ($fileName, $workingFolder, $totalReads, $totalMatching, $blastedReads, %resultsHash) = @_;
 	
 	open (RESULT, ">$workingFolder/$fileName") || die ("$workingFolder=>pb writing-creating expression file $workingFolder/$fileName\n");
-	if ($totalReads != "" && $totalMatching != "" && $blastedReads != "") {
-		print RESULT ("TotalReads\t$totalReads\n");
-		print RESULT ("TotalMatchingReads\t$totalMatching\n");
-		print RESULT ("TotalBlastedReads\t$blastedReads\n");
-	}
+	print RESULT ("TotalReads\t$totalReads\n");
+	print RESULT ("TotalMatchingReads\t$totalMatching\n");
+	print RESULT ("TotalBlastedReads\t$blastedReads\n");
 	foreach my $key (keys %resultsHash) {
 		print RESULT ("$key\t$resultsHash{$key}\n");
 	}

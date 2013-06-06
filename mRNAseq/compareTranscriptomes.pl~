@@ -91,7 +91,7 @@ foreach (@folders) {
 	if ($isgff == 1) {
 		print "$pidGff=>gff already present, skipping...\n";
 	} else {
-		`/home/benoit/Programs/quast-2.1/quast.py -o $currentPath/quast --eukaryote --gene-finding contig.fa`;
+		`/home/benoit/Documents/programs/quast-2.1/quast.py -o $currentPath/quast --eukaryote --gene-finding contig.fa`;
 		`mv quast/predicted_genes/contig_genes.gff ./`;
 	}
 	chdir("..") || die ("$pidGff=>cannot come back to origin (previous) path\n");

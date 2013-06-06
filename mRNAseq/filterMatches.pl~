@@ -488,7 +488,7 @@ my $counter = 1;
 `mkdir /dev/shm/mrnas`;
 my $dbFolder = "/dev/shm/dbs";
 `mkdir $dbFolder`;
-`cp  /home/benoit/dbs/prots/* $dbFolder`;
+`cp  /home/benoit/Documents/fastaDBs/prots/* $dbFolder`;
 `chmod -u+rw $dbFolder/*`;
 
 while (my $id = <RNA>) {
